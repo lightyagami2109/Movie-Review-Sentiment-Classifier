@@ -4,3 +4,5 @@ sst5_lstm_v1.pt
 
 node_modules/
 dist/
+
+sst5_tfidf_logreg_v1.joblib

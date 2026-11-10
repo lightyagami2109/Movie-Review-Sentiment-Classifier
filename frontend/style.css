@@ -20,3 +20,5 @@ dt { text-transform: capitalize; }
 .metrics caption { text-align: left; padding: .5rem 0; color: #38574e; }
 .metrics th, .metrics td { padding: .65rem .5rem; border-bottom: 1px solid #dce6df; text-align: left; }
 .metrics thead { background: #f2f5f1; }
+textarea + label { margin-top: 1rem; }
+select { display: block; max-width: 100%; padding: .6rem; border: 1px solid #aabdb2; border-radius: .6rem; background: white; font: inherit; }

@@ -2,3 +2,6 @@ fastapi
 uvicorn
 torch>=2.6
 nltk
+
+scikit-learn==1.8.0
+joblib

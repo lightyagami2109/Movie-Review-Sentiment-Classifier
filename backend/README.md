@@ -21,3 +21,14 @@ the checkpoint, health still works and the prediction and model routes
 return HTTP 503. Restart the server to load a replacement checkpoint.
 A replacement dataset can use this API if its exported bundle follows
 the same model and tokenizer format.
+
+## Enable TF-IDF predictions
+
+From this folder, run `python train_baseline.py` after installing the
+requirements. It fits the notebook's baseline on the SST-5 training split
+and saves the vectorizer and classifier together. Restart FastAPI to load
+the generated file, or configure its path with `SENTIMENT_BASELINE_PATH`.
+Load only a baseline artifact you created or trust.
+
+The prediction request accepts an optional `model` field with value
+`lstm` (default) or `baseline`.

@@ -1,6 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 import torch
 from fastapi import FastAPI, HTTPException
@@ -39,6 +40,12 @@ async def lifespan(app):
         app.state.model = model.eval()
         app.state.tokenizer = TreebankWordTokenizer()
         app.state.bundle = bundle
+    baseline_path = Path(os.getenv("SENTIMENT_BASELINE_PATH", "sst5_tfidf_logreg_v1.joblib"))
+    app.state.baseline = None
+    if baseline_path.is_file():
+        import joblib
+
+        app.state.baseline = joblib.load(baseline_path)
     yield
 
 
@@ -47,6 +54,7 @@ app = FastAPI(title="Movie Review Sentiment", lifespan=lifespan)
 
 class Review(BaseModel):
     review: str = Field(min_length=1, max_length=10_000)
+    model: Literal["lstm", "baseline"] = "lstm"
 
 
 def metadata(bundle):
@@ -77,6 +85,17 @@ def predict(payload: Review):
     text = payload.review.strip()
     if not text:
         raise HTTPException(422, "Enter a review with at least one non-whitespace character")
+    if payload.model == "baseline":
+        baseline = app.state.baseline
+        if baseline is None:
+            raise HTTPException(503, "TF-IDF baseline checkpoint is unavailable")
+        labels = ["negative", "neutral", "positive"]
+        scores = baseline.predict_proba([text])[0]
+        return {
+            "sentiment": labels[int(baseline.classes_[scores.argmax()])],
+            "probabilities": {labels[int(label)]: float(score) for label, score in zip(baseline.classes_, scores)},
+            "model_version": "sst5_tfidf_logreg_v1",
+        }
     bundle = app.state.bundle
     if bundle is None:
         raise HTTPException(503, "Model checkpoint is unavailable")

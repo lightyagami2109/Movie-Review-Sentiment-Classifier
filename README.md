@@ -18,3 +18,17 @@ These scores are from the same held-out SST-5 test split. The API serves the LST
 Download `sst5_lstm_v1.pt` after running the notebook's checkpoint export. Follow the [backend setup instructions](backend/README.md) to install dependencies, load the checkpoint, and try a prediction.
 
 The [original Naive Bayes notebook](MRSCNaiveBayes.ipynb) is a separate binary sentiment experiment.
+
+## Run the React frontend
+
+With FastAPI running on port 8000, open a second terminal and run:
+
+```sh
+cd frontend
+npm ci
+npm run dev
+```
+
+Open the address Vite prints and submit a review. The development server
+forwards API requests to FastAPI. The form displays the active model version
+and the labels and scores returned by the API.

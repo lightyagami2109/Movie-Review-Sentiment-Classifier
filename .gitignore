@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
 sst5_lstm_v1.pt
+
+node_modules/
+dist/

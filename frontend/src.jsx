@@ -50,6 +50,7 @@ function ModelResults() {
 
 function App() {
   const [review, setReview] = useState('');
+  const [selectedModel, setSelectedModel] = useState('lstm');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -63,7 +64,7 @@ function App() {
       const response = await fetch('/api/v1/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ review: review.trim() }),
+        body: JSON.stringify({ review: review.trim(), model: selectedModel }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -88,6 +89,15 @@ function App() {
         <label htmlFor="review">Movie review</label>
         <textarea id="review" rows={6} maxLength={10000} required disabled={busy}
           placeholder="The acting was wonderful." value={review} onChange={event => setReview(event.target.value)} />
+        <label htmlFor="prediction-model">Prediction model</label>
+        <select id="prediction-model" disabled={busy} value={selectedModel} onChange={event => {
+          setSelectedModel(event.target.value);
+          setResult(null);
+          setError('');
+        }}>
+          <option value="lstm">PyTorch LSTM</option>
+          <option value="baseline">TF-IDF + Logistic Regression</option>
+        </select>
         <button disabled={busy || !review.trim()}>{busy ? 'Analyzing…' : 'Analyze review'}</button>
       </form>
       {error && <p className="error" role="alert">{error}</p>}

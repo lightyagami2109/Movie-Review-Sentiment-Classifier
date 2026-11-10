@@ -1,0 +1,22 @@
+:root { font-family: system-ui, sans-serif; color: #182321; background: #f2f5f1; }
+body { margin: 0; }
+main { max-width: 42rem; margin: 7vh auto; padding: clamp(1.25rem, 5vw, 3rem); background: white; border: 1px solid #dce6df; border-radius: 1.25rem; }
+.eyebrow { color: #176753; font-weight: 700; letter-spacing: .12em; font-size: .75rem; }
+h1 { font-size: clamp(2rem, 6vw, 3.25rem); margin: 0; letter-spacing: -.04em; }
+header { margin-bottom: 2rem; }
+label { display: block; font-weight: 650; margin-bottom: .5rem; }
+textarea { box-sizing: border-box; width: 100%; padding: .9rem; border: 1px solid #aabdb2; border-radius: .6rem; font: inherit; resize: vertical; }
+button { margin-top: 1rem; padding: .7rem 1rem; border: 0; border-radius: .6rem; background: #176753; color: white; font: inherit; font-weight: 650; cursor: pointer; }
+button:disabled { opacity: .6; cursor: default; }
+:focus-visible { outline: 3px solid #28755e; outline-offset: 3px; }
+h2 span { color: #176753; text-transform: capitalize; }
+dl div { display: flex; justify-content: space-between; border-bottom: 1px solid #dce6df; padding: .5rem 0; }
+dt { text-transform: capitalize; }
+.error { color: #9c2626; }
+.dashboard { margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid #dce6df; }
+.dashboard h2 { margin: 0; }
+.metrics { overflow-x: auto; }
+.metrics table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.metrics caption { text-align: left; padding: .5rem 0; color: #38574e; }
+.metrics th, .metrics td { padding: .65rem .5rem; border-bottom: 1px solid #dce6df; text-align: left; }
+.metrics thead { background: #f2f5f1; }

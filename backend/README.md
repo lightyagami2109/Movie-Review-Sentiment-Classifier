@@ -32,3 +32,16 @@ Load only a baseline artifact you created or trust.
 
 The prediction request accepts an optional `model` field with value
 `lstm` (default) or `baseline`.
+
+## Run API tests
+
+From this folder, run these commands in your Python environment.
+
+```sh
+python -m pip install -r requirements-dev.txt
+python -m unittest -v test_api
+```
+
+These tests check independent model availability, missing checkpoints,
+the default model choice, and invalid requests. They run without model files.
+Model accuracy and real checkpoint inference are evaluated separately.

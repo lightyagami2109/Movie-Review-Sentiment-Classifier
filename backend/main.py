@@ -68,7 +68,14 @@ def metadata(bundle):
 
 @app.get("/api/v1/health")
 def health():
-    return {"status": "ok", "model_loaded": app.state.bundle is not None}
+    return {
+        "status": "ok",
+        "model_loaded": app.state.bundle is not None,
+        "models": {
+            "lstm": app.state.bundle is not None,
+            "baseline": app.state.baseline is not None,
+        },
+    }
 
 
 @app.get("/api/v1/model")

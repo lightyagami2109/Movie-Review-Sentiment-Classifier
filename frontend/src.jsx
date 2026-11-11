@@ -54,6 +54,28 @@ function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [availability, setAvailability] = useState(null);
+  const [availabilityError, setAvailabilityError] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/v1/health', { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error('Health check failed');
+        return response.json();
+      })
+      .then(data => {
+        if (typeof data.models?.lstm !== 'boolean' || typeof data.models?.baseline !== 'boolean') {
+          throw new Error('Model availability missing');
+        }
+        setAvailability(data.models);
+        if (!data.models.lstm && data.models.baseline) setSelectedModel('baseline');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAvailabilityError('Could not check model availability. Start FastAPI and reload this page.');
+      });
+    return () => controller.abort();
+  }, []);
 
   async function analyze(event) {
     event.preventDefault();
@@ -90,15 +112,19 @@ function App() {
         <textarea id="review" rows={6} maxLength={10000} required disabled={busy}
           placeholder="The acting was wonderful." value={review} onChange={event => setReview(event.target.value)} />
         <label htmlFor="prediction-model">Prediction model</label>
-        <select id="prediction-model" disabled={busy} value={selectedModel} onChange={event => {
+        <select id="prediction-model" disabled={busy || !availability} value={selectedModel} onChange={event => {
           setSelectedModel(event.target.value);
           setResult(null);
           setError('');
         }}>
-          <option value="lstm">PyTorch LSTM</option>
-          <option value="baseline">TF-IDF + Logistic Regression</option>
+          <option value="lstm" disabled={!availability?.lstm}>PyTorch LSTM</option>
+          <option value="baseline" disabled={!availability?.baseline}>TF-IDF + Logistic Regression</option>
         </select>
-        <button disabled={busy || !review.trim()}>{busy ? 'Analyzing…' : 'Analyze review'}</button>
+        {!availability && !availabilityError && <p role="status">Checking available models…</p>}
+        {availabilityError && <p role="alert">{availabilityError}</p>}
+        {availability && !availability.lstm && <p role="status">LSTM unavailable. Add sst5_lstm_v1.pt to the backend and restart FastAPI.</p>}
+        {availability && !availability.baseline && <p role="status">TF-IDF unavailable. Run backend/train_baseline.py and restart FastAPI.</p>}
+        <button disabled={busy || !review.trim() || !availability?.[selectedModel]}>{busy ? 'Analyzing…' : 'Analyze review'}</button>
       </form>
       {error && <p className="error" role="alert">{error}</p>}
       <section aria-live="polite">

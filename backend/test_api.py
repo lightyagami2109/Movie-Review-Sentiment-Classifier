@@ -2,6 +2,8 @@
 import unittest
 from unittest.mock import patch
 
+import numpy
+
 from fastapi.testclient import TestClient
 
 from main import app
@@ -42,6 +44,26 @@ class ApiTests(unittest.TestCase):
         response = self.client.post("/api/v1/predict", json={"review": "Great acting."})
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()["detail"], "Model checkpoint is unavailable")
+
+    def test_baseline_prediction_returns_labelled_probabilities(self):
+        class FakeBaseline:
+            classes_ = [0, 1, 2]
+
+            def predict_proba(self, texts):
+                self.texts = texts
+                return numpy.array([[0.1, 0.2, 0.7]])
+
+        app.state.baseline = FakeBaseline()
+        response = self.client.post("/api/v1/predict", json={
+            "review": "  Great acting.  ", "model": "baseline",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(app.state.baseline.texts, ["Great acting."])
+        body = response.json()
+        self.assertEqual(body["sentiment"], "positive")
+        self.assertEqual(body["model_version"], "sst5_tfidf_logreg_v1")
+        for label, score in {"negative": 0.1, "neutral": 0.2, "positive": 0.7}.items():
+            self.assertAlmostEqual(body["probabilities"][label], score)
 
     def test_invalid_input_returns_validation_error(self):
         for body in ({}, {"review": ""}, {"review": " \n\t "},

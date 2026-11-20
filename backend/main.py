@@ -43,8 +43,9 @@ async def lifespan(app):
         app.state.tokenizer = TreebankWordTokenizer()
         app.state.bundle = bundle
     baseline_path = Path(os.getenv("SENTIMENT_BASELINE_PATH", "sst5_tfidf_logreg_v2.joblib"))
-    if "SENTIMENT_BASELINE_PATH" not in os.environ and not baseline_path.is_file():
-        baseline_path = baseline_path.with_name("sst5_tfidf_logreg_v1.joblib")
+    older_path = baseline_path.with_name("sst5_tfidf_logreg_v1.joblib")
+    if "SENTIMENT_BASELINE_PATH" not in os.environ and not baseline_path.is_file() and older_path.is_file():
+        baseline_path = older_path  # use the older file only if it really exists
     app.state.baseline = None
     app.state.baseline_version = baseline_path.stem
     app.state.baseline_metrics = None

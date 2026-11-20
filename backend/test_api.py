@@ -61,9 +61,55 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(app.state.baseline.texts, ["Great acting."])
         body = response.json()
         self.assertEqual(body["sentiment"], "positive")
-        self.assertEqual(body["model_version"], "sst5_tfidf_logreg_v1")
+        self.assertEqual(body["model_version"], "sst5_tfidf_logreg_v2")
         for label, score in {"negative": 0.1, "neutral": 0.2, "positive": 0.7}.items():
             self.assertAlmostEqual(body["probabilities"][label], score)
+
+    def test_explain_returns_word_impacts(self):
+        class FakeBaseline:
+            classes_ = [0, 1, 2]
+
+            def predict_proba(self, texts):
+                # "fabulous" makes a review more positive; every other word is neutral.
+                return numpy.array([[0.1, 0.2, 0.7] if "fabulous" in text else [0.4, 0.4, 0.2] for text in texts])
+
+        app.state.baseline = FakeBaseline()
+        response = self.client.post("/api/v1/predict", json={
+            "review": "the movie was fabulous", "model": "baseline", "explain": True,
+        })
+        self.assertEqual(response.status_code, 200)
+        words = {item["text"]: item["impact"] for item in response.json()["words"]}
+        self.assertEqual(list(words), ["the", "movie", "was", "fabulous"])
+        self.assertAlmostEqual(words["fabulous"], 2.639, places=2)
+        self.assertAlmostEqual(words["movie"], 0.0)
+
+    def test_batch_predicts_every_review_in_order(self):
+        class FakeBaseline:
+            classes_ = [0, 1, 2]
+
+            def predict_proba(self, texts):
+                return numpy.array([[0.1, 0.1, 0.8] if "great" in text else [0.8, 0.1, 0.1] for text in texts])
+
+        app.state.baseline = FakeBaseline()
+        response = self.client.post("/api/v1/predict-batch", json={
+            "reviews": ["  great film ", "dull film"], "model": "baseline",
+        })
+        self.assertEqual(response.status_code, 200)
+        results = response.json()["results"]
+        self.assertEqual([item["review"] for item in results], ["great film", "dull film"])
+        self.assertEqual([item["sentiment"] for item in results], ["positive", "negative"])
+
+    def test_batch_rejects_empty_blank_and_oversized_lists(self):
+        app.state.baseline = object()
+        for body in ({"reviews": []}, {"reviews": ["fine", "  "]}, {"reviews": ["ok"] * 201}):
+            with self.subTest(size=len(body["reviews"])):
+                self.assertIn(self.client.post("/api/v1/predict-batch", json=body).status_code, (422,))
+
+    def test_examples_route_serves_file_or_explains_why_not(self):
+        app.state.examples = None
+        self.assertEqual(self.client.get("/api/v1/examples").status_code, 404)
+        app.state.examples = {"samples": [{"text": "Fine.", "label": "neutral"}], "failures": []}
+        self.assertEqual(self.client.get("/api/v1/examples").json()["samples"][0]["label"], "neutral")
 
     def test_invalid_input_returns_validation_error(self):
         for body in ({}, {"review": ""}, {"review": " \n\t "},

@@ -1,6 +1,23 @@
 # Movie Review Sentiment Classifier
 
-Classify movie-review excerpts as negative, neutral, or positive using a PyTorch LSTM or TF-IDF + Logistic Regression. A React form sends predictions to FastAPI.
+Classify movie-review excerpts as negative, neutral, or positive using a PyTorch LSTM or TF-IDF + Logistic Regression. A React website (Review Reader) sends reviews to a FastAPI backend.
+
+## Quick start
+
+From this folder, after the model files are in `backend/` (see below):
+
+```sh
+bash start.sh
+```
+
+It finds the Python environment, checks the packages, starts the API on port 8000 and the website on port 5173, and opens the site. Press Ctrl+C to stop both.
+
+The website can:
+- classify one review and show which words moved the score,
+- try random real reviews from the test set and compare the answer with the dataset label,
+- list reviews the TF-IDF model gets wrong ("Where it fails"),
+- keep your last 5 reviews, and
+- analyze up to 200 reviews at once from pasted text or a CSV file and download the predictions.
 
 ## Training and evaluation
 
@@ -8,16 +25,18 @@ Open [the SST-5 notebook](notebooks/sst5_three_class.ipynb) in Google Colab and 
 
 | Model | Test accuracy | Test macro F1 |
 | --- | ---: | ---: |
-| TF-IDF + logistic regression | 61.6% | 0.550 |
+| TF-IDF + Logistic Regression | 64.5% | 0.579 |
 | PyTorch LSTM | 53.3% | 0.488 |
 
-These scores are from the same held-out SST-5 test split. The LSTM is selected by default. Choose TF-IDF + Logistic Regression in the review form to compare predictions.
+These scores are from the same held-out SST-5 test split of 2,203 reviews, which no model trained on. The website uses TF-IDF + Logistic Regression by default, and you can switch to the LSTM in the review form.
+
+The TF-IDF model used by the website is trained by `backend/train_baseline.py` on every labelled phrase of the training sentences (about 159,000 examples, from the same Stanford training file). The notebook's own baseline section trains on whole sentences only and scores lower (61.6% accuracy, 0.550 macro F1).
 
 ## Prepare both models
 
 Run the Colab notebook and download `sst5_lstm_v1.pt` into `backend/`.
 After installing the backend dependencies, run `python train_baseline.py`
-from `backend/` to create `sst5_tfidf_logreg_v1.joblib` using the notebook's training settings.
+from `backend/` (about 20 seconds). It trains on phrase-level labels, prints validation and test scores, and creates `sst5_tfidf_logreg_v2.joblib` and its scores file. Then run `python build_examples.py` to refresh the example and "Where it fails" reviews for the website.
 
 Alternatively, configure the file locations using `SENTIMENT_MODEL_PATH`
 and `SENTIMENT_BASELINE_PATH`. Restart FastAPI after adding either model.
@@ -46,5 +65,4 @@ npm run dev
 ```
 
 Open the address Vite prints and submit a review. The development server
-forwards API requests to FastAPI. The form displays the active model version
-and the labels and scores returned by the API.
+forwards API requests to FastAPI. `bash start.sh` does all of this in one step.

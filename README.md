@@ -1,13 +1,3 @@
----
-title: Review Reader
-emoji: 🎬
-colorFrom: blue
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # Movie Review Sentiment Classifier
 
 Classify movie-review excerpts as negative, neutral, or positive using a PyTorch LSTM or TF-IDF + Logistic Regression, plus a fine-tuned DistilBERT experiment with an inference speed benchmark. A React website (Review Reader) sends reviews to a FastAPI backend.
@@ -69,7 +59,7 @@ Batching, padding each batch only to its longest sentence, sorting sentences by 
 
 ## Prepare both models
 
-Run the Colab notebook and download `sst5_lstm_v1.pt` into `backend/`.
+Run the Colab notebook and download `sst5_lstm_v1.pt` into `backend/`. Then, in `backend/`, run `python convert_checkpoint.py` once. It writes `sst5_lstm_v1.npz`, the file the server loads, and checks it against PyTorch.
 After installing the backend dependencies, run `python train_baseline.py`
 from `backend/` (about 20 seconds). It trains on phrase-level labels, prints validation and test scores, and creates `sst5_tfidf_logreg_v2.joblib` and its scores file. Then run `python build_examples.py` to refresh the example and "Where it fails" reviews for the website.
 
@@ -88,9 +78,11 @@ Sign-in uses [Firebase Authentication](https://firebase.google.com/docs/auth) (e
 
 Guests can analyze one review at a time. Batch analysis needs sign-in, and the API checks the Firebase token against Google's public certificates (no secret key needed). `.env` is never committed.
 
-## Deploy (Hugging Face Spaces, Docker)
+## Deploy (Render, free)
 
-The `Dockerfile` builds the website and serves it with the API on port 7860. Add the four `VITE_FIREBASE_*` values as Space variables, and add the Space address (`your-space.hf.space`) under Firebase Authentication -> Settings -> Authorized domains.
+The `Dockerfile` builds the website and serves it with the API from one container. The server runs the LSTM with NumPy (`numpy_lstm.py`), so it fits in the free 512 MB plan. After retraining, run `python convert_checkpoint.py` in `backend/` to make a new `sst5_lstm_v1.npz`, which checks itself against PyTorch.
+
+On Render: New > Web Service > connect this repo > Runtime "Docker" > free instance. Add the four `VITE_FIREBASE_*` values as environment variables, and add the Render address under Firebase Authentication > Settings > Authorized domains. Free services sleep after 15 minutes idle; the first visit afterwards takes about a minute.
 
 ## Limitations
 

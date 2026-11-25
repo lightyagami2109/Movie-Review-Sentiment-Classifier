@@ -48,6 +48,32 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()["detail"], "Model checkpoint is unavailable")
 
+    def test_lstm_prediction_runs_without_pytorch(self):
+        import json
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from test_numpy_lstm import random_weights
+
+        meta = {
+            "tokenizer": "lowercase_treebank_v1", "model_config": {"num_classes": 3},
+            "labels": ["negative", "neutral", "positive"], "vocab": {"great": 2, "film": 3},
+            "max_length": 8, "model_version": "test-lstm", "dataset": "test", "test_metrics": {},
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "tiny.npz"
+            numpy.savez(path, meta=numpy.array(json.dumps(meta)), **random_weights())
+            with patch.dict(os.environ, {"SENTIMENT_MODEL_PATH": str(path)}):
+                with TestClient(app) as client:
+                    response = client.post("/api/v1/predict", json={"review": "A great film", "model": "lstm", "explain": True})
+                    self.assertEqual(response.status_code, 200)
+                    body = response.json()
+                    self.assertEqual(body["model_version"], "test-lstm")
+                    self.assertAlmostEqual(sum(body["probabilities"].values()), 1.0, places=5)
+                    self.assertEqual([word["text"] for word in body["words"]], ["A", "great", "film"])
+                    self.assertTrue(client.get("/api/v1/health").json()["models"]["lstm"])
+
     def test_baseline_prediction_returns_labelled_probabilities(self):
         class FakeBaseline:
             classes_ = [0, 1, 2]

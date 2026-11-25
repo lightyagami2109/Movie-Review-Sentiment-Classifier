@@ -19,10 +19,11 @@ FROM python:3.12-slim
 RUN useradd -m -u 1000 user
 WORKDIR /app
 COPY backend/requirements.txt backend/requirements.txt
-RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY --chown=user backend/ backend/
 COPY --chown=user --from=site /build/dist frontend/dist
 USER user
 WORKDIR /app/backend
 EXPOSE 7860
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Hosts such as Render tell the app which port to use through $PORT.
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]

@@ -1,6 +1,5 @@
 .venv/
 __pycache__/
-sst5_lstm_v1.pt
 
 node_modules/
 dist/
@@ -8,3 +7,8 @@ dist/
 sst5_tfidf_logreg_v1.joblib
 
 .DS_Store
+
+# Local settings (never commit your own keys). The example file is fine to commit.
+.env
+.env.*
+!.env.example

@@ -1,3 +1,13 @@
+---
+title: Review Reader
+emoji: 🎬
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Movie Review Sentiment Classifier
 
 Classify movie-review excerpts as negative, neutral, or positive using a PyTorch LSTM or TF-IDF + Logistic Regression, plus a fine-tuned DistilBERT experiment with an inference speed benchmark. A React website (Review Reader) sends reviews to a FastAPI backend.
@@ -67,6 +77,20 @@ Alternatively, configure the file locations using `SENTIMENT_MODEL_PATH`
 and `SENTIMENT_BASELINE_PATH`. Restart FastAPI after adding either model.
 The LSTM export includes its vocabulary and settings. The baseline file
 contains the fitted vectorizer and classifier together.
+
+## Sign-in and guest mode
+
+Sign-in uses [Firebase Authentication](https://firebase.google.com/docs/auth) (email + password). Without settings the site still works as guest-only.
+
+1. In the Firebase console create a project, add a **Web app**, and under Authentication turn on **Email/Password**.
+2. Copy `.env.example` to `.env` in this folder and fill in the web app's `apiKey`, `projectId` and `appId`.
+3. Run `bash start.sh`. The login page shows first; "Continue as guest" skips it.
+
+Guests can analyze one review at a time. Batch analysis needs sign-in, and the API checks the Firebase token against Google's public certificates (no secret key needed). `.env` is never committed.
+
+## Deploy (Hugging Face Spaces, Docker)
+
+The `Dockerfile` builds the website and serves it with the API on port 7860. Add the four `VITE_FIREBASE_*` values as Space variables, and add the Space address (`your-space.hf.space`) under Firebase Authentication -> Settings -> Authorized domains.
 
 ## Limitations
 

@@ -5,6 +5,16 @@ set -e
 cd "$(dirname "$0")"
 ROOT="$PWD"
 
+# 0. Load local settings (Firebase sign-in values) from .env if it exists.
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+else
+  echo "Note: no .env file, so sign-in is off and the site opens as guest only. See .env.example."
+fi
+
 # 1. Find (or create) the Python virtual environment.
 VENV=""
 for folder in "$ROOT/backend/.venv" "$ROOT/.venv"; do

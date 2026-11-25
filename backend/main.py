@@ -5,10 +5,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
 
+import jwt
 import torch
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from torch import nn
+
+import firebase_auth
 
 
 class SentimentLSTM(nn.Module):
@@ -27,6 +31,11 @@ class SentimentLSTM(nn.Module):
 @asynccontextmanager
 async def lifespan(app):
     path = Path(os.getenv("SENTIMENT_MODEL_PATH", "sst5_lstm_v1.pt"))
+    app.state.accounts = None
+    try:
+        app.state.accounts = firebase_auth.from_environment()
+    except ValueError as error:
+        print(f"Sign-in is off: {error}")
     app.state.bundle = None
     if path.is_file():
         from nltk.tokenize import TreebankWordTokenizer
@@ -85,6 +94,22 @@ class Review(BaseModel):
     review: str = Field(min_length=1, max_length=10_000)
     model: Literal["lstm", "baseline"] = "lstm"
     explain: bool = False
+
+
+def require_user(request: Request):
+    """Only signed-in users may pass. Fails closed: with no Firebase project set, nobody gets in."""
+    verifier = getattr(request.app.state, "accounts", None)
+    if verifier is None:
+        raise HTTPException(503, "Sign-in is not set up on this server")
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(401, "Sign in to use batch analysis", headers={"WWW-Authenticate": "Bearer"})
+    try:
+        return verifier.verify(token.strip())
+    except firebase_auth.KeysUnavailable:
+        raise HTTPException(503, "Could not reach the sign-in service. Try again in a moment") from None
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Your session has expired. Sign in again", headers={"WWW-Authenticate": "Bearer"}) from None
 
 
 def metadata(bundle):
@@ -180,7 +205,7 @@ def require_model(model):
         raise HTTPException(503, "Model checkpoint is unavailable")
 
 
-@app.post("/api/v1/predict-batch")
+@app.post("/api/v1/predict-batch", dependencies=[Depends(require_user)])
 @torch.inference_mode()
 def predict_batch(payload: BatchReviews):
     texts = [review.strip() for review in payload.reviews]
@@ -217,3 +242,10 @@ def predict(payload: Review):
     if payload.explain:
         response["words"] = explain_words(payload.model, text, probabilities)
     return response
+
+
+# The built website (npm run build) is served from the same address in deployment.
+# Mounted last so every /api route above keeps priority. Absent during local development.
+SITE_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if SITE_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=SITE_DIR, html=True), name="site")

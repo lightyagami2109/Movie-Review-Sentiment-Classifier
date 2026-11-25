@@ -6,6 +6,7 @@ import numpy
 
 from fastapi.testclient import TestClient
 
+import main
 from main import app
 
 
@@ -16,6 +17,8 @@ class ApiTests(unittest.TestCase):
             self.client = TestClient(app)
             self.client.__enter__()
         self.addCleanup(self.client.__exit__, None, None, None)
+        app.state.accounts = None  # never depend on a developer's local .env
+        self.addCleanup(app.dependency_overrides.clear)
 
     def test_health_reports_each_model_independently(self):
         for lstm, baseline in [(True, True), (True, False), (False, True), (False, False)]:
@@ -83,7 +86,11 @@ class ApiTests(unittest.TestCase):
         self.assertAlmostEqual(words["fabulous"], 2.639, places=2)
         self.assertAlmostEqual(words["movie"], 0.0)
 
+    def sign_in(self):
+        app.dependency_overrides[main.require_user] = lambda: {"sub": "user_test"}
+
     def test_batch_predicts_every_review_in_order(self):
+        self.sign_in()
         class FakeBaseline:
             classes_ = [0, 1, 2]
 
@@ -100,10 +107,39 @@ class ApiTests(unittest.TestCase):
         self.assertEqual([item["sentiment"] for item in results], ["positive", "negative"])
 
     def test_batch_rejects_empty_blank_and_oversized_lists(self):
+        self.sign_in()
         app.state.baseline = object()
         for body in ({"reviews": []}, {"reviews": ["fine", "  "]}, {"reviews": ["ok"] * 201}):
             with self.subTest(size=len(body["reviews"])):
                 self.assertIn(self.client.post("/api/v1/predict-batch", json=body).status_code, (422,))
+
+    def test_batch_needs_sign_in_but_single_predictions_do_not(self):
+        class FakeVerifier:
+            def verify(self, token):
+                if token != "good":
+                    raise main.jwt.InvalidTokenError("bad")
+                return {"sub": "user_1"}
+
+        class FakeBaseline:
+            classes_ = [0, 1, 2]
+
+            def predict_proba(self, texts):
+                return numpy.array([[0.1, 0.1, 0.8]] * len(texts))
+
+        app.state.baseline = FakeBaseline()
+        body = {"reviews": ["great film"], "model": "baseline"}
+        # Sign-in not configured: fail closed.
+        self.assertEqual(self.client.post("/api/v1/predict-batch", json=body).status_code, 503)
+        app.state.accounts = FakeVerifier()
+        self.assertEqual(self.client.post("/api/v1/predict-batch", json=body).status_code, 401)
+        for header in ("Bearer bad", "Basic good", "Bearer "):
+            with self.subTest(header=header):
+                response = self.client.post("/api/v1/predict-batch", json=body, headers={"Authorization": header})
+                self.assertEqual(response.status_code, 401)
+        ok = self.client.post("/api/v1/predict-batch", json=body, headers={"Authorization": "Bearer good"})
+        self.assertEqual(ok.status_code, 200)
+        guest = self.client.post("/api/v1/predict", json={"review": "great film", "model": "baseline"})
+        self.assertEqual(guest.status_code, 200)
 
     def test_examples_route_serves_file_or_explains_why_not(self):
         app.state.examples = None

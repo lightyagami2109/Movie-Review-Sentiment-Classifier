@@ -6,31 +6,18 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import jwt
-import torch
+import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from torch import nn
 
 import firebase_auth
-
-
-class SentimentLSTM(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, num_classes):
-        super().__init__()
-        self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
-        self.output = nn.Linear(hidden_dim, num_classes)
-
-    def forward(self, ids):
-        states, _ = self.lstm(self.embedding(ids))
-        last = (ids != 0).sum(dim=1) - 1
-        return self.output(states[torch.arange(ids.size(0)), last])
+import numpy_lstm
 
 
 @asynccontextmanager
 async def lifespan(app):
-    path = Path(os.getenv("SENTIMENT_MODEL_PATH", "sst5_lstm_v1.pt"))
+    path = Path(os.getenv("SENTIMENT_MODEL_PATH", "sst5_lstm_v1.npz"))
     app.state.accounts = None
     try:
         app.state.accounts = firebase_auth.from_environment()
@@ -40,15 +27,8 @@ async def lifespan(app):
     if path.is_file():
         from nltk.tokenize import TreebankWordTokenizer
 
-        bundle = torch.load(path, map_location="cpu", weights_only=True)
-        if bundle["tokenizer"] != "lowercase_treebank_v1":
-            raise ValueError("Unsupported checkpoint tokenizer")
-        config = bundle["model_config"]
-        if config["num_classes"] != len(bundle["labels"]):
-            raise ValueError("Checkpoint labels do not match the model output")
-        model = SentimentLSTM(len(bundle["vocab"]), **config)
-        model.load_state_dict(bundle["weights"])
-        app.state.model = model.eval()
+        model, bundle = numpy_lstm.load(path)
+        app.state.model = model
         app.state.tokenizer = TreebankWordTokenizer()
         app.state.bundle = bundle
     baseline_path = Path(os.getenv("SENTIMENT_BASELINE_PATH", "sst5_tfidf_logreg_v2.joblib"))
@@ -163,7 +143,7 @@ def class_probabilities(model, texts):
         )
         ids = [bundle["vocab"].get(token, 1) for token in tokens[:length]] or [1]
         batch.append(ids + [0] * (length - len(ids)))
-    scores = app.state.model(torch.tensor(batch)).softmax(dim=1)
+    scores = app.state.model.probabilities(np.array(batch, dtype=np.int64))
     return [dict(zip(bundle["labels"], row)) for row in scores.tolist()]
 
 
@@ -206,7 +186,6 @@ def require_model(model):
 
 
 @app.post("/api/v1/predict-batch", dependencies=[Depends(require_user)])
-@torch.inference_mode()
 def predict_batch(payload: BatchReviews):
     texts = [review.strip() for review in payload.reviews]
     if any(not text for text in texts):
@@ -220,7 +199,6 @@ def predict_batch(payload: BatchReviews):
 
 
 @app.post("/api/v1/predict")
-@torch.inference_mode()
 def predict(payload: Review):
     text = payload.review.strip()
     if not text:

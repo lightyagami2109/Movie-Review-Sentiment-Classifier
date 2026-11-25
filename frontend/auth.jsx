@@ -194,7 +194,7 @@ function Poster({ poster, review }) {
   );
 }
 
-function Collage() {
+export function Collage() {
   const columns = useMemo(() => Array.from({ length: COLUMNS }, (_, c) => (
     Array.from({ length: PER_COLUMN }, (_, r) => ({
       poster: POSTERS[(c * 5 + r * 3) % POSTERS.length],
@@ -306,6 +306,11 @@ const MODES = [
   { key: 'signin', label: 'Sign in', title: 'Sign in to start reading reviews' },
   { key: 'signup', label: 'Create account', title: 'Create your account' },
 ];
+
+/* The same poster collage, fixed behind the main site and faded so the text stays easy to read. */
+export function SiteBackdrop() {
+  return <div className="site-backdrop"><Collage /></div>;
+}
 
 export function LoginPage({ theme, onToggleTheme, onGuest, repoUrl }) {
   const [mode, setMode] = useState('signin');

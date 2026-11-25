@@ -81,3 +81,7 @@ main.auth-main { position: relative; z-index: 2; flex: 1; display: grid; place-i
 .auth-pass input { padding-right: 3rem; }
 .auth-eye { position: absolute; top: 50%; right: .35rem; transform: translateY(-50%); display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border: 0; border-radius: .6rem; background: transparent; color: var(--ink-soft); cursor: pointer; }
 .auth-eye:hover { color: var(--ink); background: var(--soft); }
+
+/* Poster collage behind the main site: fixed, and covered by a heavier scrim than on the sign-in page. */
+.site-backdrop { position: fixed; inset: 0; z-index: -1; }
+.site-backdrop .collage::after { background: rgb(var(--scrim) / .9); }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
-import { AuthProvider, LoginPage, useAccount } from './auth.jsx';
+import { AuthProvider, LoginPage, SiteBackdrop, useAccount } from './auth.jsx';
 import { getAuthToken } from './session.js';
 import { useTheme } from './theme.js';
 
@@ -545,6 +545,7 @@ function App({ theme, onToggleTheme }) {
 
   return (
     <>
+      <SiteBackdrop />
       <header className="top">
         <a className="brand" href="#top"><span className="logo" aria-hidden="true" />Review Reader</a>
         <nav aria-label="Main">

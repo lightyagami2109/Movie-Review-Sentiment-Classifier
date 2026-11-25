@@ -5,3 +5,5 @@ nltk
 
 scikit-learn==1.9.1
 joblib
+
+PyJWT[crypto]>=2.8

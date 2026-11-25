@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import { AuthProvider, LoginPage, useAccount } from './auth.jsx';
+import { getAuthToken } from './session.js';
+import { useTheme } from './theme.js';
 
 const MODELS = {
   baseline: { name: 'TF-IDF + Logistic Regression', hint: 'Fast and the most accurate here' },
@@ -38,11 +41,10 @@ function writeStorage(key, value) {
 }
 
 async function postJson(url, body, fallbackMessage) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const headers = { 'Content-Type': 'application/json' };
+  const token = await getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(typeof data.detail === 'string' ? data.detail : fallbackMessage);
@@ -278,7 +280,7 @@ function downloadCsv(results) {
   URL.revokeObjectURL(url);
 }
 
-function Batch({ modelKey, available }) {
+function Batch({ modelKey, available, account }) {
   const [text, setText] = useState('');
   const [results, setResults] = useState(null);
   const [note, setNote] = useState('');
@@ -311,6 +313,19 @@ function Batch({ modelKey, available }) {
     }
   }
 
+  if (!account.signedIn) {
+    return (
+      <section className="panel batch" id="batch" aria-labelledby="batch-title">
+        <h2 id="batch-title">Analyze many reviews at once</h2>
+        <p className="note">
+          {account.configured
+            ? `Sign in to paste or upload up to ${MAX_BATCH} reviews and download the predictions as a CSV file.`
+            : 'Sign-in is not set up on this server, so analyzing many reviews at once is turned off.'}
+        </p>
+        {account.configured && <button type="button" className="primary fit" onClick={account.requestLogin}>Sign in</button>}
+      </section>
+    );
+  }
   const counts = results ? LABELS.map(label => [label, results.filter(item => item.sentiment === label).length]) : [];
   return (
     <section className="panel batch" id="batch" aria-labelledby="batch-title">
@@ -405,12 +420,6 @@ function ModelResults() {
 
 /* ---------- App ---------- */
 
-function currentTheme() {
-  const set = document.documentElement.dataset.theme;
-  if (set === 'dark' || set === 'light') return set;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 function loadHistory() {
   try {
     const items = JSON.parse(readStorage('history', '[]'));
@@ -420,8 +429,8 @@ function loadHistory() {
   }
 }
 
-function App() {
-  const [theme, setTheme] = useState(currentTheme);
+function App({ theme, onToggleTheme }) {
+  const account = useAccount();
   const [review, setReview] = useState('');
   const [truth, setTruth] = useState(null);
   const [selectedModel, setSelectedModel] = useState('baseline');
@@ -436,13 +445,6 @@ function App() {
   const [history, setHistory] = useState(loadHistory);
   const textarea = useRef(null);
   const lastRandom = useRef(-1);
-
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    setTheme(next);
-    writeStorage('theme', next);
-  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -550,7 +552,12 @@ function App() {
           <a href="#batch">Batch</a>
           <a href="#results">Model results</a>
           <a href={REPO_URL} target="_blank" rel="noreferrer">GitHub</a>
-          <button type="button" className="theme" onClick={toggleTheme}>{theme === 'dark' ? 'Light theme' : 'Dark theme'}</button>
+          <button type="button" className="theme" onClick={onToggleTheme}>{theme === 'dark' ? 'Light theme' : 'Dark theme'}</button>
+          {account.signedIn && <>
+            <span className="account-email" title={account.email}>{account.email}</span>
+            <button type="button" className="theme" onClick={account.signOut}>Sign out</button>
+          </>}
+          {!account.signedIn && account.configured && <button type="button" className="theme" onClick={account.requestLogin}>Sign in</button>}
         </nav>
       </header>
       <main id="top">
@@ -610,7 +617,7 @@ function App() {
           {failures.length > 0 && availability?.baseline && <Failures failures={failures} disabled={busy} onTry={item => tryDatasetReview(item, 'baseline')} />}
         </div>
         <div className="lower single">
-          <Batch modelKey={selectedModel} available={ready} />
+          <Batch modelKey={selectedModel} available={ready} account={account} />
         </div>
       </main>
       <footer>
@@ -621,4 +628,33 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+/* ---------- Root: loading screen, sign-in page or the app ---------- */
+
+const WAIT_MS = 8000;
+
+function Root() {
+  const account = useAccount();
+  const [theme, toggleTheme] = useTheme();
+  const [waited, setWaited] = useState(false);
+
+  useEffect(() => {
+    if (account.ready) return undefined;
+    const timer = setTimeout(() => setWaited(true), WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [account.ready]);
+
+  if (!account.ready && !account.guest) {
+    return (
+      <main className="boot" role="status">
+        <p>{waited ? 'Sign-in is taking longer than usual.' : 'Loading…'}</p>
+        {waited && <button type="button" className="ghost" onClick={account.continueAsGuest}>Continue as guest</button>}
+      </main>
+    );
+  }
+  if (account.configured && !account.signedIn && !account.guest) {
+    return <LoginPage theme={theme} onToggleTheme={toggleTheme} onGuest={account.continueAsGuest} repoUrl={REPO_URL} />;
+  }
+  return <App theme={theme} onToggleTheme={toggleTheme} />;
+}
+
+createRoot(document.getElementById('root')).render(<AuthProvider><Root /></AuthProvider>);
